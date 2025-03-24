@@ -9,12 +9,17 @@ import {
   ToolExecutionError,
 } from 'ai';
 import { NextRequest } from 'next/server';
+import { setApiKeyTool } from '@/lib/ai/tools';
+
+const SYSTEM_PROMPT = 'You are a friendly assistant. Do not use emojis in your responses. Make sure to format code blocks, and add language/title to it. When an information is provided, if possible, try to store it for future reference.';
 
 export async function POST(request: NextRequest) {
   const {
     messages,
+    apiKey
   }: {
     messages: Array<Message>;
+    apiKey: string;
   } = await request.json();
 
   try {
@@ -22,6 +27,9 @@ export async function POST(request: NextRequest) {
       transport: {
         type: 'sse',
         url: 'https://mcp.meetingbaas.com/sse',
+        headers: {
+          'x-meeting-baas-api-key': apiKey,
+        }
       },
       onUncaughtError: (error) => {
         console.error('MCP Client error:', error);
@@ -29,7 +37,7 @@ export async function POST(request: NextRequest) {
     });
 
     const toolSet = await client.tools();
-    const tools = { ...toolSet };
+    const tools = { ...toolSet, setApiKey: setApiKeyTool };
 
     const result = streamText({
       // todo: add models.ts file
@@ -50,8 +58,7 @@ export async function POST(request: NextRequest) {
       onError: async () => {
         client.close();
       },
-      system:
-        'You are a friendly assistant. Do not use emojis in your responses. Make sure to format code blocks, and add language/title to it',
+      system: `${SYSTEM_PROMPT} The user has provided their MeetingBaas API Key, and it is successfully stored. The API Key is: ${apiKey}`,
       messages,
     });
 
